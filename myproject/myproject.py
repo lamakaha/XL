@@ -143,19 +143,24 @@ def func4():
 
 
 def func5():
-    """Dummy function for scenario analysis."""
-    # Create a simple message in Excel
+    """Dummy function for scenario analysis that deletes and recreates the sheet."""
+    # Get the Excel workbook
     wb = xw.Book.caller()
     sheet_name = "Scenario_Analysis"
 
-    # Check if sheet exists, if not create it
-    if sheet_name not in [sheet.name for sheet in wb.sheets]:
-        wb.sheets.add(sheet_name)
+    # Delete the sheet if it exists (warnings are suppressed at the button handler level)
+    if sheet_name in [sheet.name for sheet in wb.sheets]:
+        wb.sheets[sheet_name].delete()
+        print(f"Deleted sheet: {sheet_name}")
 
-    sheet = wb.sheets[sheet_name]
-    sheet.clear()
-    sheet.range("A1").value = "Scenario Analysis Function Called"
-    sheet.range("A2").value = "Date: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # Create a new sheet
+    new_sheet = wb.sheets.add(sheet_name)
+    print(f"Created new sheet: {sheet_name}")
+
+    # Add content to the sheet
+    new_sheet.range("A1").value = "Scenario Analysis Function Called"
+    new_sheet.range("A2").value = "Date: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_sheet.range("A3").value = "This sheet was deleted and recreated without warnings"
 
 
 def func6():
@@ -569,9 +574,22 @@ def main():
                         root.destroy()
                         return
 
-                    # Call the function (which now doesn't return anything)
+                    # Call the function with Excel warnings suppressed
                     try:
+                        # Store the original display alerts setting
+                        original_alerts = None
+                        try:
+                            # Get the Excel application and disable alerts
+                            if excel_app:
+                                original_alerts = excel_app.display_alerts
+                                excel_app.display_alerts = False
+                                print(f"Disabled Excel display alerts")
+                        except Exception as e:
+                            print(f"Error disabling Excel alerts: {e}")
+
+                        # Call the function
                         func()
+
                         # Update status to "Completed: [Button Label]"
                         status_label.config(text=f"Completed: {btn_text}")
                     except Exception as e:
@@ -600,12 +618,18 @@ def main():
                         # Show the exception dialog
                         show_exception_dialog(exception_text, log_filename)
                 finally:
-                    # Re-enable Excel user interaction
+                    # Re-enable Excel user interaction and alerts
                     try:
                         if excel_app:
+                            # Restore interactive mode
                             excel_app.interactive = True
+
+                            # Restore display alerts if we changed it
+                            if original_alerts is not None:
+                                excel_app.display_alerts = original_alerts
+                                print(f"Restored Excel display alerts to: {original_alerts}")
                     except Exception as e:
-                        print(f"Error re-enabling Excel: {e}")  # If we can't set the Excel app, continue anyway
+                        print(f"Error restoring Excel settings: {e}")  # If we can't set the Excel app, continue anyway
 
                     # Re-enable all buttons
                     for tab_buttons in all_buttons:
