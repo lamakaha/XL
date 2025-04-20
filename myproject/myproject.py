@@ -576,16 +576,23 @@ def main():
 
                     # Call the function with Excel warnings suppressed
                     try:
-                        # Store the original display alerts setting
+                        # Store the original Excel settings
                         original_alerts = None
+                        original_enable_events = None
                         try:
-                            # Get the Excel application and disable alerts
+                            # Get the Excel application and disable alerts and events
                             if excel_app:
+                                # Disable alerts
                                 original_alerts = excel_app.display_alerts
                                 excel_app.display_alerts = False
                                 print(f"Disabled Excel display alerts")
+
+                                # Disable events
+                                original_enable_events = excel_app.enable_events
+                                excel_app.enable_events = False
+                                print(f"Disabled Excel events")
                         except Exception as e:
-                            print(f"Error disabling Excel alerts: {e}")
+                            print(f"Error disabling Excel alerts/events: {e}")
 
                         # Call the function
                         func()
@@ -628,6 +635,11 @@ def main():
                             if original_alerts is not None:
                                 excel_app.display_alerts = original_alerts
                                 print(f"Restored Excel display alerts to: {original_alerts}")
+
+                            # Restore events if we changed it
+                            if original_enable_events is not None:
+                                excel_app.enable_events = original_enable_events
+                                print(f"Restored Excel events to: {original_enable_events}")
                     except Exception as e:
                         print(f"Error restoring Excel settings: {e}")  # If we can't set the Excel app, continue anyway
 
