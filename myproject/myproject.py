@@ -8,7 +8,66 @@ from datetime import datetime, timedelta
 import traceback
 import os
 import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 import pyperclip
+
+
+# Function to keep the UI responsive during long-running operations
+def keep_ui_responsive(func, status_label, btn_text, root):
+    # Create a flag to track completion
+    is_complete = threading.Event()
+    result = [None]  # Use a list to store the result (to allow modification from inner function)
+    error = [None]   # Use a list to store any error
+
+    # Function to run in a separate thread
+    def threaded_task():
+        try:
+            result[0] = func()
+        except Exception as e:
+            error[0] = e
+        finally:
+            is_complete.set()
+
+    # Start the thread
+    thread = threading.Thread(target=threaded_task)
+    thread.daemon = True
+    thread.start()
+
+    # Update progress while waiting for completion
+    start_time = time.time()
+    last_update_time = 0
+    while not is_complete.is_set():
+        # Get elapsed time
+        elapsed = time.time() - start_time
+
+        # Update the status with elapsed time (mm:ss format)
+        minutes = int(elapsed) // 60
+        seconds = int(elapsed) % 60
+        status_text = f"Processing time: {minutes:02d}:{seconds:02d}"
+        status_label.config(text=status_text)
+
+        # Process any pending UI events to keep the window responsive
+        root.update()
+
+        # Sleep briefly to avoid consuming too much CPU
+        time.sleep(0.1)
+
+        # Every 2 seconds, print a progress message to console
+        current_second = int(elapsed)
+        if current_second != last_update_time and current_second % 2 == 0:
+            print(f"Still processing... ({minutes:02d}:{seconds:02d} elapsed)")
+            last_update_time = current_second
+
+    # Check if there was an error
+    if error[0] is not None:
+        raise error[0]
+
+    # Update status to "Completed"
+    status_label.config(text=f"Completed: {btn_text}")
+
+    return result[0]
 
 
 def func1():
@@ -180,7 +239,7 @@ def func6():
 
 
 def func7():
-    """Dummy function for reporting."""
+    """Dummy function for reporting that uses threading for file operations."""
     # Create a simple message in Excel
     wb = xw.Book.caller()
     sheet_name = "Reporting"
@@ -191,8 +250,32 @@ def func7():
 
     sheet = wb.sheets[sheet_name]
     sheet.clear()
-    sheet.range("A1").value = "Reporting Function Called"
+    sheet.range("A1").value = "Threaded Reporting Function Called"
     sheet.range("A2").value = "Date: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Simulate reading multiple files with ThreadPoolExecutor
+    def read_file(file_num):
+        # Simulate file reading by sleeping
+        time.sleep(1)  # Simulate a 1-second file read
+        return f"Data from file {file_num}"
+
+    # Use ThreadPoolExecutor to read files in parallel
+    results = []
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        # Submit 10 file reading tasks
+        futures = [executor.submit(read_file, i) for i in range(1, 11)]
+
+        # Collect results as they complete
+        for i, future in enumerate(futures):
+            result = future.result()
+            results.append(result)
+            print(f"Read file {i+1}/10: {result}")
+
+    # Write results to Excel
+    for i, result in enumerate(results):
+        sheet.range(f"A{i+4}").value = result
+
+    sheet.range("A3").value = f"Read {len(results)} files successfully"
 
 
 @xw.func
@@ -474,7 +557,8 @@ def main():
             tab_button = canvas
 
             # Bind click event to the canvas
-            canvas.bind("<Button-1>", lambda _event, idx=tab_index: self.select_tab(idx))
+            # Using _ as a prefix for event indicates it's intentionally unused
+            canvas.bind("<Button-1>", lambda _, idx=tab_index: self.select_tab(idx))
 
             # After all tabs are added, we'll center them
 
@@ -594,11 +678,9 @@ def main():
                         except Exception as e:
                             print(f"Error disabling Excel alerts/events: {e}")
 
-                        # Call the function
-                        func()
-
-                        # Update status to "Completed: [Button Label]"
-                        status_label.config(text=f"Completed: {btn_text}")
+                        # For all functions, use the keep_ui_responsive approach to ensure
+                        # the UI stays responsive during execution
+                        keep_ui_responsive(func, status_label, btn_text, root)
                     except Exception as e:
                         print(f"Exception in function: {e}")
                         # Get the full exception traceback
