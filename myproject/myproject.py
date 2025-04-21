@@ -687,17 +687,9 @@ def main():
                         exc_type, exc_value, exc_traceback = sys.exc_info()
                         exception_text = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
 
-                        # Log the exception to a file
-                        try:
-                            # Try to get the path of the caller workbook
-                            log_path = wb.fullname
-                        except:
-                            try:
-                                # Try to get the path of any active workbook
-                                log_path = xw.books.active.fullname
-                            except:
-                                # If all else fails, use the current working directory
-                                log_path = os.path.join(os.getcwd(), "myproject.xlsm")
+                        # Log the exception to a file using only the caller workbook path
+                        # This is the only acceptable approach in this context
+                        log_path = wb.fullname
 
                         log_filename = log_exception(exception_text, log_path)
 
