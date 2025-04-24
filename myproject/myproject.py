@@ -400,6 +400,25 @@ def is_excel_still_open(wb_path):
         return False
 
 def main():
+    """
+    Main function to create the Excel ribbon UI.
+
+    The function checks command-line arguments for a --tabs flag:
+    --tabs=Market|Portfolio will only show the Market and Portfolio tabs.
+    If the --tabs flag is not present or empty, all tabs will be shown.
+    """
+    # Check for command-line arguments with --tabs flag
+    enabled_tabs = None
+
+    # Parse all command-line arguments looking for --tabs flag
+    for arg in sys.argv:
+        if arg.startswith("--tabs="):
+            # Extract the value after --tabs=
+            tabs_value = arg.split("=", 1)[1].strip()
+            if tabs_value:  # Only set if not empty
+                enabled_tabs = tabs_value
+                print(f"Found --tabs flag with value: {enabled_tabs}")
+            break
     # Define a list of preset colors for buttons (background, foreground)
     button_colors = [
         ("#4F81BD", "white"),  # Blue
@@ -423,6 +442,13 @@ def main():
     except Exception as e:
         print(f"Error getting caller workbook: {e}")
         wb_path = "Unknown Workbook"
+
+    # Parse the enabled_tabs parameter
+    enabled_tab_list = []
+    if enabled_tabs:
+        # Split the pipe-delimited string into a list
+        enabled_tab_list = [tab.strip() for tab in enabled_tabs.split('|') if tab.strip()]
+        print(f"Enabled tabs: {enabled_tab_list}")
 
     # Define the function map with tabs as keys and button definitions as values
     # Format: {"Tab Name": {"Button Label": function_reference, ...}, ...}
@@ -746,6 +772,11 @@ def main():
     # Create tabs and buttons
     tab_count = 0
     for tab_name, button_dict in funcs_map.items():
+        # Skip this tab if it's not in the enabled_tab_list (when the list is not empty)
+        if enabled_tab_list and tab_name not in enabled_tab_list:
+            print(f"Skipping tab: {tab_name} (not in enabled tabs list)")
+            continue
+
         # Get color for this tab (cycle through the preset colors)
         bg_color, fg_color = button_colors[tab_count % len(button_colors)]
         tab_count += 1
@@ -857,4 +888,5 @@ if __name__ == "__main__":
     wb.set_mock_caller()
 
     # Start the main application
+    # Command-line arguments will be automatically processed in the main function
     main()
