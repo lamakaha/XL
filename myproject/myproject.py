@@ -404,7 +404,7 @@ def main():
     Main function to create the Excel ribbon UI.
 
     The function checks command-line arguments for a --tabs flag:
-    --tabs=Market|Portfolio will only show the Market and Portfolio tabs.
+    --tabs=Market~Portfolio will only show the Market and Portfolio tabs.
     If the --tabs flag is not present or empty, all tabs will be shown.
     """
     # Check for command-line arguments with --tabs flag
@@ -446,8 +446,8 @@ def main():
     # Parse the enabled_tabs parameter
     enabled_tab_list = []
     if enabled_tabs:
-        # Split the pipe-delimited string into a list
-        enabled_tab_list = [tab.strip() for tab in enabled_tabs.split('|') if tab.strip()]
+        # Split the tilde-delimited string into a list
+        enabled_tab_list = [tab.strip() for tab in enabled_tabs.split('~') if tab.strip()]
         print(f"Enabled tabs: {enabled_tab_list}")
 
     # Define the function map with tabs as keys and button definitions as values
@@ -890,3 +890,6 @@ if __name__ == "__main__":
     # Start the main application
     # Command-line arguments will be automatically processed in the main function
     main()
+
+    # To test with specific tabs enabled, run:
+    # python myproject.py --tabs=Market~Portfolio
