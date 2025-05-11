@@ -12,6 +12,15 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 import pyperclip
+import logging
+from retry_decorator import retry_xlwings
+
+# Setup logging for retry decorator
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 # Function to keep the UI responsive during long-running operations
@@ -175,14 +184,20 @@ def func3():
     wb = xw.Book.caller()
     sheet_name = "Correlation_Analysis"
 
-    # Check if sheet exists, if not create it
-    if sheet_name not in [sheet.name for sheet in wb.sheets]:
-        wb.sheets.add(sheet_name)
+    # Check if sheet exists, if not create it - using retry-enabled functions
+    try:
+        # Try to get the sheet first
+        sheet = get_sheet(wb, sheet_name)
+    except Exception:
+        # If it doesn't exist, add it
+        sheet = add_sheet(wb, sheet_name)
 
-    sheet = wb.sheets[sheet_name]
-    sheet.clear()
-    sheet.range("A1").value = "Correlation Analysis Function Called"
-    sheet.range("A2").value = "Date: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # Clear the sheet with retry capability
+    clear_sheet(sheet)
+
+    # Set values with retry capability
+    set_range_value(sheet, "A1", "Correlation Analysis Function Called")
+    set_range_value(sheet, "A2", "Date: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 
 def func4():
@@ -281,6 +296,40 @@ def func7():
 @xw.func
 def hello(name):
     return f"Hello {name}!"
+
+
+@retry_xlwings(tries=4, delay=0.5, backoff=1.5, jitter=0.2, logger_func=logger.warning)
+def func8():
+    """Example function with direct retry decorator application."""
+    # Create a simple message in Excel
+    wb = xw.Book.caller()
+    sheet_name = "Retry_Example"
+
+    # Check if sheet exists, if not create it
+    if sheet_name not in [sheet.name for sheet in wb.sheets]:
+        wb.sheets.add(sheet_name)
+
+    sheet = wb.sheets[sheet_name]
+    sheet.clear()
+
+    # This entire function will be retried if any COM errors occur
+    sheet.range("A1").value = "Retry Decorator Example"
+    sheet.range("A2").value = "Date: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Create a sample DataFrame
+    df = pd.DataFrame({
+        'Column1': [1, 2, 3, 4, 5],
+        'Column2': [10, 20, 30, 40, 50],
+        'Column3': [100, 200, 300, 400, 500]
+    })
+
+    # Write the DataFrame to Excel
+    sheet.range("A4").value = df
+
+    # Format headers
+    sheet.range("A4:C4").api.Font.Bold = True
+
+    return "Function completed with retry capability"
 
 
 def log_exception(exception_text, workbook_path):
@@ -399,6 +448,39 @@ def is_excel_still_open(wb_path):
         print(f"Error checking Excel: {e}")
         return False
 
+
+# Utility functions with retry for common xlwings operations
+@retry_xlwings(tries=3, delay=0.5, logger_func=logger.warning)
+def get_sheet(workbook, sheet_name):
+    """Get a sheet by name with retry capability."""
+    return workbook.sheets[sheet_name]
+
+
+@retry_xlwings(tries=3, delay=0.5, logger_func=logger.warning)
+def add_sheet(workbook, sheet_name):
+    """Add a sheet with retry capability."""
+    return workbook.sheets.add(sheet_name)
+
+
+@retry_xlwings(tries=3, delay=0.5, logger_func=logger.warning)
+def clear_sheet(sheet):
+    """Clear a sheet with retry capability."""
+    sheet.clear()
+    return True
+
+
+@retry_xlwings(tries=3, delay=0.5, logger_func=logger.warning)
+def set_range_value(sheet, range_address, value):
+    """Set the value of a range with retry capability."""
+    sheet.range(range_address).value = value
+    return True
+
+
+@retry_xlwings(tries=3, delay=0.5, logger_func=logger.warning)
+def get_range_value(sheet, range_address):
+    """Get the value of a range with retry capability."""
+    return sheet.range(range_address).value
+
 def main():
     """
     Main function to create the Excel ribbon UI.
@@ -463,6 +545,9 @@ def main():
             "Scenario": func5,
             "Optim": func6,
             "Report": func7,
+        },
+        "Utils": {
+            "Retry": func8,
         }
     }
 
