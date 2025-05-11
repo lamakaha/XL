@@ -16,9 +16,19 @@ import logging
 from retry_decorator import retry_xlwings
 
 # Setup logging for retry decorator
+# Create logs directory if it doesn't exist
+os.makedirs('logs', exist_ok=True)
+
+# Configure logging to write to both file and console
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        # File handler - logs to file
+        logging.FileHandler(os.path.join('logs', 'xlwings_retries.log')),
+        # Stream handler - logs to console
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -328,6 +338,21 @@ def func8():
 
     # Format headers
     sheet.range("A4:C4").api.Font.Bold = True
+
+    # Display recent retry logs
+    from retry_decorator import show_recent_retry_logs
+    recent_logs = show_recent_retry_logs(num_lines=30)
+
+    sheet.range("A12").value = "Recent Retry Logs:"
+    sheet.range("A12").api.Font.Bold = True
+    sheet.range("A13").value = recent_logs
+
+    # Adjust row heights for better log display
+    for i in range(13, 13 + len(recent_logs.split('\n'))):
+        try:
+            sheet.range(f"A{i}").row_height = 15  # Adjust row height for readability
+        except:
+            pass  # Ignore errors in row height adjustment
 
     return "Function completed with retry capability"
 
