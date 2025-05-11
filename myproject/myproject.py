@@ -16,16 +16,11 @@ import logging
 from retry_decorator import retry_xlwings
 
 # Setup logging for retry decorator
-# Create logs directory if it doesn't exist
-os.makedirs('logs', exist_ok=True)
-
-# Configure logging to write to both file and console
+# Configure basic logging to console
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        # File handler - logs to file
-        logging.FileHandler(os.path.join('logs', 'xlwings_retries.log')),
         # Stream handler - logs to console
         logging.StreamHandler()
     ]
@@ -334,30 +329,20 @@ def func8():
     })
 
     # Write the DataFrame to Excel
-    sheet.range("A4").value = df
+    sheet.range("A-100").value = df
 
     # Format headers
     sheet.range("A4:C4").api.Font.Bold = True
 
-    # Display recent retry logs
-    from retry_decorator import show_recent_retry_logs
-    recent_logs = show_recent_retry_logs(num_lines=30)
-
-    sheet.range("A12").value = "Recent Retry Logs:"
-    sheet.range("A12").api.Font.Bold = True
-    sheet.range("A13").value = recent_logs
-
-    # Adjust row heights for better log display
-    for i in range(13, 13 + len(recent_logs.split('\n'))):
-        try:
-            sheet.range(f"A{i}").row_height = 15  # Adjust row height for readability
-        except:
-            pass  # Ignore errors in row height adjustment
+    # Add a note about retry functionality
+    sheet.range("A10").value = "This function demonstrates the retry decorator."
+    sheet.range("A10").api.Font.Bold = True
+    sheet.range("A11").value = "Check the logs folder for error logs with retry information."
 
     return "Function completed with retry capability"
 
 
-def log_exception(exception_text, workbook_path):
+def log_exception(exception_text, workbook_path, exc_value=None):
     """Log exception to a file in a logs subfolder."""
     try:
         # Get the directory of the workbook
@@ -376,6 +361,17 @@ def log_exception(exception_text, workbook_path):
             log_file.write(f"Exception occurred at {datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}\n")
             log_file.write("=" * 80 + "\n")
             log_file.write(exception_text)
+
+            # Check if there are retry logs attached to the exception
+            if exc_value is not None and hasattr(exc_value, 'retry_logs') and exc_value.retry_logs:
+                log_file.write("\n\n" + "=" * 80 + "\n")
+                log_file.write("RETRY ATTEMPTS:\n")
+                log_file.write("=" * 80 + "\n")
+                for i, retry_log in enumerate(exc_value.retry_logs):
+                    log_file.write(f"\nRetry Attempt #{i+1}:\n")
+                    log_file.write(retry_log)
+                    log_file.write("\n")
+
             log_file.write("\n" + "=" * 80)
 
         return log_filename
@@ -386,13 +382,13 @@ def log_exception(exception_text, workbook_path):
         return None
 
 
-def show_exception_dialog(exception_text, log_filename):
+def show_exception_dialog(exception_text, log_filename, exc_value=None):
     """Show a modal dialog with the exception details."""
     # Create a new top-level window
     dialog = tk.Toplevel()
     dialog.title("Error Occurred")
-    dialog.geometry("600x400")
-    dialog.minsize(400, 300)
+    dialog.geometry("700x500")  # Larger size to accommodate retry logs
+    dialog.minsize(500, 400)
     dialog.grab_set()  # Make the dialog modal
     dialog.focus_set()
 
@@ -423,13 +419,32 @@ def show_exception_dialog(exception_text, log_filename):
     text_area = scrolledtext.ScrolledText(
         frame,
         wrap=tk.WORD,
-        width=70,
-        height=15,
+        width=80,
+        height=20,
         font=("Courier New", 10)
     )
     text_area.pack(expand=True, fill="both")
+
+    # Insert the exception text
     text_area.insert(tk.END, exception_text)
+
+    # If there are retry logs, add them to the text area
+    if exc_value is not None and hasattr(exc_value, 'retry_logs') and exc_value.retry_logs:
+        text_area.insert(tk.END, "\n\n" + "=" * 80 + "\n")
+        text_area.insert(tk.END, "RETRY ATTEMPTS:\n")
+        text_area.insert(tk.END, "=" * 80 + "\n\n")
+
+        for i, retry_log in enumerate(exc_value.retry_logs):
+            text_area.insert(tk.END, f"Retry Attempt #{i+1}:\n")
+            text_area.insert(tk.END, retry_log)
+            text_area.insert(tk.END, "\n\n")
+
+        text_area.insert(tk.END, "=" * 80)
+
     text_area.config(state="disabled")  # Make it read-only
+
+    # Scroll to the top
+    text_area.see("1.0")
 
     # Create a frame for buttons
     button_frame = tk.Frame(frame)
@@ -437,7 +452,12 @@ def show_exception_dialog(exception_text, log_filename):
 
     # Copy button
     def copy_to_clipboard():
-        pyperclip.copy(exception_text)
+        # Get all text from the text area
+        text_area.config(state="normal")
+        full_text = text_area.get("1.0", tk.END)
+        text_area.config(state="disabled")
+
+        pyperclip.copy(full_text)
         copy_btn.config(text="Copied!")
         dialog.after(1000, lambda: copy_btn.config(text="Copy to Clipboard"))
 
@@ -827,13 +847,14 @@ def main():
                         # This is the only acceptable approach in this context
                         log_path = wb.fullname
 
-                        log_filename = log_exception(exception_text, log_path)
+                        # Pass the exception object to log_exception to include retry logs
+                        log_filename = log_exception(exception_text, log_path, exc_value)
 
                         # Update status label
                         status_label.config(text=f"Error occurred. See log for details.")
 
-                        # Show the exception dialog
-                        show_exception_dialog(exception_text, log_filename)
+                        # Show the exception dialog with retry logs
+                        show_exception_dialog(exception_text, log_filename, exc_value)
                 finally:
                     # Re-enable Excel user interaction and alerts
                     try:

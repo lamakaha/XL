@@ -2,7 +2,6 @@ import functools
 import time
 import random
 import logging
-import os
 from typing import Type, Union, List, Callable, Optional, Any
 
 # Setup logging
@@ -39,6 +38,8 @@ def retry(
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             mtries, mdelay = tries, delay
+            # Collect retry attempt logs
+            retry_logs = []
 
             while mtries > 1:
                 try:
@@ -57,14 +58,29 @@ def retry(
                         f"  Kwargs: {kwargs}\n"
                         f"  Retrying in {next_delay:.2f} seconds... ({mtries-1} tries remaining)"
                     )
-                    logger_func(msg)
+
+                    # Add to retry logs
+                    retry_logs.append(msg)
+
+                    # Always print to console for visibility
+                    print(f"RETRY LOG: {msg}")
+
+                    # Use the logger function
+                    if logger_func:
+                        logger_func(msg)
 
                     time.sleep(next_delay)
                     mtries -= 1
                     mdelay *= backoff
 
             # Last attempt
-            return func(*args, **kwargs)
+            try:
+                return func(*args, **kwargs)
+            except exceptions as e:
+                # If we get here, all retries have failed
+                # Attach the retry logs to the exception for later use
+                e.retry_logs = retry_logs
+                raise
 
         return wrapper
 
@@ -96,7 +112,6 @@ def retry_xlwings(
     """
     # Common COM exceptions to catch
     com_exceptions = (
-        # COMError is the most common
         Exception,  # Using Exception as a fallback since we don't know the exact error types
     )
 
@@ -108,33 +123,6 @@ def retry_xlwings(
         jitter=jitter,
         logger_func=logger_func
     )
-
-
-# Function to display recent retry logs
-def show_recent_retry_logs(log_file_path='logs/xlwings_retries.log', num_lines=20):
-    """
-    Display the most recent retry log entries.
-
-    Args:
-        log_file_path: Path to the log file
-        num_lines: Number of recent lines to display
-
-    Returns:
-        The most recent log entries as a string
-    """
-    try:
-        if not os.path.exists(log_file_path):
-            return f"Log file not found: {log_file_path}"
-
-        # Read the last num_lines from the log file
-        with open(log_file_path, 'r') as f:
-            # Read all lines and get the last num_lines
-            lines = f.readlines()
-            recent_lines = lines[-num_lines:] if len(lines) > num_lines else lines
-
-        return ''.join(recent_lines)
-    except Exception as e:
-        return f"Error reading log file: {e}"
 
 
 # Example usage:
