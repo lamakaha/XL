@@ -40,10 +40,24 @@ def retry(
             mtries, mdelay = tries, delay
             # Collect retry attempt logs
             retry_logs = []
+            # Track attempt number
+            attempt_number = 1
 
             while mtries > 1:
                 try:
-                    return func(*args, **kwargs)
+                    # Try to call the function
+                    result = func(*args, **kwargs)
+
+                    # If we get here, the call succeeded
+                    # Check if this was a retry (not the first attempt)
+                    if attempt_number > 1:
+                        success_msg = f"RETRY SUCCESS: Function '{func.__name__}' succeeded on attempt #{attempt_number} (after {attempt_number-1} retries)"
+                        print(f"RETRY LOG: {success_msg}")
+                        if logger_func:
+                            logger_func(success_msg)
+
+                    return result
+
                 except exceptions as e:
                     # Calculate jitter amount
                     jitter_amount = random.uniform(0, jitter * mdelay)
@@ -53,7 +67,7 @@ def retry(
 
                     # Create a more detailed log message
                     msg = (
-                        f"RETRY ATTEMPT: Function '{func.__name__}' failed with error: {e.__class__.__name__}: {e}\n"
+                        f"RETRY ATTEMPT: Function '{func.__name__}' failed on attempt #{attempt_number} with error: {e.__class__.__name__}: {e}\n"
                         f"  Args: {args}\n"
                         f"  Kwargs: {kwargs}\n"
                         f"  Retrying in {next_delay:.2f} seconds... ({mtries-1} tries remaining)"
@@ -71,11 +85,22 @@ def retry(
 
                     time.sleep(next_delay)
                     mtries -= 1
+                    attempt_number += 1
                     mdelay *= backoff
 
             # Last attempt
             try:
-                return func(*args, **kwargs)
+                result = func(*args, **kwargs)
+
+                # If we get here, the last attempt succeeded
+                if attempt_number > 1:
+                    success_msg = f"RETRY SUCCESS: Function '{func.__name__}' succeeded on final attempt #{attempt_number} (after {attempt_number-1} retries)"
+                    print(f"RETRY LOG: {success_msg}")
+                    if logger_func:
+                        logger_func(success_msg)
+
+                return result
+
             except exceptions as e:
                 # If we get here, all retries have failed
                 # Attach the retry logs to the exception for later use
