@@ -20,11 +20,9 @@ import platform
 import socket
 import datetime
 import subprocess
-import ctypes
 import winreg
 import traceback
 import logging
-from pathlib import Path
 import importlib.metadata as metadata
 
 # Set up logging
@@ -145,7 +143,9 @@ def get_excel_info():
         for reg_path in reg_paths:
             try:
                 with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path) as key:
-                    info[f"registry_{reg_path.replace('\\', '_')}"] = "Key exists"
+                    # Fix the backslash issue in f-string
+                    reg_path_key = reg_path.replace('\\', '_')
+                    info[f"registry_{reg_path_key}"] = "Key exists"
 
                     # Try to enumerate subkeys
                     try:
@@ -153,7 +153,9 @@ def get_excel_info():
                         while True:
                             subkey_name = winreg.EnumKey(key, i)
                             if "office" in subkey_name.lower() or "excel" in subkey_name.lower():
-                                info[f"registry_{reg_path.replace('\\', '_')}_{subkey_name}"] = "Found"
+                                # Fix the backslash issue in f-string
+                                reg_path_key = reg_path.replace('\\', '_')
+                                info[f"registry_{reg_path_key}_{subkey_name}"] = "Found"
 
                                 # Try to get Excel path
                                 try:
@@ -190,13 +192,17 @@ def get_excel_info():
                             name, value, _ = winreg.EnumValue(key, i)
                             # Only include relevant values to avoid too much noise
                             if any(term in name.lower() for term in ["version", "build", "update", "patch", "excel", "office"]):
-                                info[f"registry_{reg_path.replace('\\', '_')}_{name}"] = str(value)
+                                # Fix the backslash issue in f-string
+                                reg_path_key = reg_path.replace('\\', '_')
+                                info[f"registry_{reg_path_key}_{name}"] = str(value)
                             i += 1
                     except WindowsError:
                         # No more values
                         pass
             except Exception as e:
-                info[f"registry_{reg_path.replace('\\', '_')}"] = f"Key not found or error: {str(e)}"
+                # Fix the backslash issue in f-string
+                reg_path_key = reg_path.replace('\\', '_')
+                info[f"registry_{reg_path_key}"] = f"Key not found or error: {str(e)}"
 
         # Check for Office Click-to-Run configuration
         try:
@@ -239,7 +245,9 @@ def get_excel_info():
             for path in excel_user_paths:
                 try:
                     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path) as key:
-                        info[f"user_registry_{path.replace('\\', '_')}"] = "Key exists"
+                        # Fix the backslash issue in f-string
+                        path_key = path.replace('\\', '_')
+                        info[f"user_registry_{path_key}"] = "Key exists"
 
                         # Try to get security settings
                         try:
@@ -288,7 +296,7 @@ def get_excel_info():
 
         for base_path in common_paths:
             if os.path.exists(base_path):
-                for root, dirs, files in os.walk(base_path):
+                for root, _, files in os.walk(base_path):
                     for file in files:
                         if file.lower() == "excel.exe":
                             excel_exe_paths.append(os.path.join(root, file))
@@ -407,14 +415,18 @@ def get_com_info():
                     i = 0
                     try:
                         while True:
-                            name, value, type = winreg.EnumValue(key, i)
-                            info[f"dcom_{key_path.replace('\\', '_')}_{name}"] = str(value)
+                            name, value, _ = winreg.EnumValue(key, i)
+                            # Fix the backslash issue in f-string
+                            key_path_fixed = key_path.replace('\\', '_')
+                            info[f"dcom_{key_path_fixed}_{name}"] = str(value)
                             i += 1
                     except WindowsError:
                         # No more values
                         pass
             except Exception as e:
-                info[f"dcom_{key_path.replace('\\', '_')}_error"] = str(e)
+                # Fix the backslash issue in f-string
+                key_path_fixed = key_path.replace('\\', '_')
+                info[f"dcom_{key_path_fixed}_error"] = str(e)
     except Exception as e:
         info["dcom_registry_error"] = str(e)
 
